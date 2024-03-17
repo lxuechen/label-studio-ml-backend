@@ -41,21 +41,28 @@ def chat_completion_call(messages, params, *args, **kwargs):
     """
     provider = params.get("provider", OpenAIInteractive.OPENAI_PROVIDER)
     model = params.get("model", OpenAIInteractive.OPENAI_MODEL)
+    breakpoint()
     if provider == "openai":
+        print(params.get("api_key", OpenAIInteractive.OPENAI_KEY))
+        breakpoint()
         client = OpenAI(
             api_key=params.get("api_key", OpenAIInteractive.OPENAI_KEY),
         )
         if not model:
-            model = 'gpt-3.5-turbo-instruct'
+            model = "gpt-3.5-turbo-instruct"
     elif provider == "azure":
         client = AzureOpenAI(
             api_key=params.get("api_key", OpenAIInteractive.OPENAI_KEY),
             api_version=params.get("api_version", OpenAIInteractive.AZURE_API_VERSION),
-            azure_endpoint=params.get('resource_endpoint', OpenAIInteractive.AZURE_RESOURCE_ENDPOINT).rstrip('/'),
-            azure_deployment=params.get('deployment_name', OpenAIInteractive.AZURE_DEPLOYMENT_NAME)
+            azure_endpoint=params.get(
+                "resource_endpoint", OpenAIInteractive.AZURE_RESOURCE_ENDPOINT
+            ).rstrip("/"),
+            azure_deployment=params.get(
+                "deployment_name", OpenAIInteractive.AZURE_DEPLOYMENT_NAME
+            ),
         )
         if not model:
-            model = 'gpt-35-turbo-instruct'
+            model = "gpt-35-turbo-instruct"
     else:
         raise
 
@@ -63,17 +70,18 @@ def chat_completion_call(messages, params, *args, **kwargs):
         "messages": messages,
         "model": model,
         "n": params.get("num_responses", OpenAIInteractive.NUM_RESPONSES),
-        "temperature": params.get("temperature", OpenAIInteractive.TEMPERATURE)
+        "temperature": params.get("temperature", OpenAIInteractive.TEMPERATURE),
     }
-
+    print(messages)
+    print(request_params)
+    breakpoint()
     completion = client.chat.completions.create(**request_params)
 
     return completion
 
 
 def gpt(messages: Union[List[Dict], str], params, *args, **kwargs):
-    """
-    """
+    """ """
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
 
@@ -86,19 +94,24 @@ def gpt(messages: Union[List[Dict], str], params, *args, **kwargs):
 
 
 class OpenAIInteractive(LabelStudioMLBase):
-    """
-    """
+    """ """
+
     OPENAI_PROVIDER = os.getenv("OPENAI_PROVIDER", "openai")
-    OPENAI_KEY = os.getenv('OPENAI_API_KEY')
+    OPENAI_KEY = os.getenv("OPENAI_API_KEY")
     PROMPT_PREFIX = os.getenv("PROMPT_PREFIX", "prompt")
-    USE_INTERNAL_PROMPT_TEMPLATE = bool(int(os.getenv("USE_INTERNAL_PROMPT_TEMPLATE", 1)))
-    PROMPT_TEMPLATE = os.getenv("PROMPT_TEMPLATE", '**Source Text**:\n\n"{text}"\n\n**Task Directive**:\n\n"{prompt}"')
+    USE_INTERNAL_PROMPT_TEMPLATE = bool(
+        int(os.getenv("USE_INTERNAL_PROMPT_TEMPLATE", 1))
+    )
+    PROMPT_TEMPLATE = os.getenv(
+        "PROMPT_TEMPLATE",
+        '**Source Text**:\n\n"{text}"\n\n**Task Directive**:\n\n"{prompt}"',
+    )
     PROMPT_TAG = "TextArea"
     SUPPORTED_INPUTS = ("Image", "Text", "HyperText", "Paragraphs")
     NUM_RESPONSES = int(os.getenv("NUM_RESPONSES", 1))
     TEMPERATURE = float(os.getenv("TEMPERATURE", 0.7))
     OPENAI_MODEL = os.getenv("OPENAI_MODEL")
-    AZURE_RESOURCE_ENDPOINT = os.getenv("AZURE_RESOURCE_ENDPOINT", '')
+    AZURE_RESOURCE_ENDPOINT = os.getenv("AZURE_RESOURCE_ENDPOINT", "")
     AZURE_DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
     AZURE_API_VERSION = os.getenv("AZURE_API_VERSION", "2023-05-15")
 
@@ -112,8 +125,7 @@ class OpenAIInteractive(LabelStudioMLBase):
         return text
 
     def _get_text(self, task_data, object_tag):
-        """
-        """
+        """ """
         data = task_data.get(object_tag.value_name)
 
         if data is None:
@@ -127,40 +139,45 @@ class OpenAIInteractive(LabelStudioMLBase):
             return data
 
     def _get_prompts(self, context, prompt_tag) -> List[str]:
-        """Getting prompt values
-        """
+        """Getting prompt values"""
         if context:
             # Interactive mode - get prompt from context
-            result = context.get('result')
+            result = context.get("result")
             for item in result:
-                if item.get('from_name') == prompt_tag.name:
-                    return item['value']['text']
+                if item.get("from_name") == prompt_tag.name:
+                    return item["value"]["text"]
         # Initializing - get existing prompt from storage
         elif prompt := self.get(prompt_tag.name):
             return [prompt]
 
         return []
 
-    def _match_choices(self, response: List[str], original_choices: List[str]) -> List[str]:
+    def _match_choices(
+        self, response: List[str], original_choices: List[str]
+    ) -> List[str]:
         # assuming classes are separated by newlines
         # TODO: support other guardrails
         matched_labels = []
         predicted_classes = response[0].splitlines()
 
         for pred in predicted_classes:
-            scores = list(map(lambda l: difflib.SequenceMatcher(None, pred, l).ratio(), original_choices))
+            scores = list(
+                map(
+                    lambda l: difflib.SequenceMatcher(None, pred, l).ratio(),
+                    original_choices,
+                )
+            )
             matched_labels.append(original_choices[scores.index(max(scores))])
 
         return matched_labels
 
     def _find_choices_tag(self, object_tag):
-        """Classification predictor
-        """
+        """Classification predictor"""
         li = self.label_interface
 
         try:
             choices_from_name, _, _ = li.get_first_tag_occurence(
-                'Choices',
+                "Choices",
                 self.SUPPORTED_INPUTS,
                 to_name_filter=lambda s: s == object_tag.name,
             )
@@ -170,13 +187,12 @@ class OpenAIInteractive(LabelStudioMLBase):
             return None
 
     def _find_textarea_tag(self, prompt_tag, object_tag):
-        """Free-form text predictor
-        """
+        """Free-form text predictor"""
         li = self.label_interface
 
         try:
             textarea_from_name, _, _ = li.get_first_tag_occurence(
-                'TextArea',
+                "TextArea",
                 self.SUPPORTED_INPUTS,
                 name_filter=lambda s: s != prompt_tag.name,
                 to_name_filter=lambda s: s == object_tag.name,
@@ -187,8 +203,7 @@ class OpenAIInteractive(LabelStudioMLBase):
             return None
 
     def _find_prompt_tags(self):
-        """Find prompting tags in the config
-        """
+        """Find prompting tags in the config"""
         li = self.label_interface
         prompt_from_name, prompt_to_name, value = li.get_first_tag_occurence(
             # prompt tag
@@ -196,17 +211,19 @@ class OpenAIInteractive(LabelStudioMLBase):
             # supported input types
             self.SUPPORTED_INPUTS,
             # if multiple <TextArea> are presented, use one with prefix specified in PROMPT_PREFIX
-            name_filter=lambda s: s.startswith(self.PROMPT_PREFIX))
+            name_filter=lambda s: s.startswith(self.PROMPT_PREFIX),
+        )
 
         return li.get_control(prompt_from_name), li.get_object(prompt_to_name)
 
     def _validate_tags(self, choices_tag: str, textarea_tag: str) -> None:
         if not choices_tag and not textarea_tag:
-            raise ValueError('No supported tags found: <Choices> or <TextArea>')
+            raise ValueError("No supported tags found: <Choices> or <TextArea>")
 
-    def _generate_normalized_prompt(self, text: str, prompt: str, task_data: Dict) -> str:
-        """
-        """
+    def _generate_normalized_prompt(
+        self, text: str, prompt: str, task_data: Dict
+    ) -> str:
+        """ """
         if self.USE_INTERNAL_PROMPT_TEMPLATE:
             norm_prompt = self.PROMPT_TEMPLATE.format(text=text, prompt=prompt)
         else:
@@ -214,10 +231,15 @@ class OpenAIInteractive(LabelStudioMLBase):
 
         return norm_prompt
 
-    def _generate_response_regions(self, response: str, prompt_tag,
-                                   choices_tag: str, textarea_tag: str, prompts: List[str]) -> List:
-        """
-        """
+    def _generate_response_regions(
+        self,
+        response: str,
+        prompt_tag,
+        choices_tag: str,
+        textarea_tag: str,
+        prompts: List[str],
+    ) -> List:
+        """ """
         regions = []
 
         if choices_tag and len(response) > 0:
@@ -232,23 +254,35 @@ class OpenAIInteractive(LabelStudioMLBase):
 
         return regions
 
-    def _predict_single_task(self, task_data: Dict, prompt_tag: Any, object_tag: Any, prompt: str,
-                             choices_tag: str, textarea_tag: str, prompts: List[str]) -> Dict:
-        """
-        """
+    def _predict_single_task(
+        self,
+        task_data: Dict,
+        prompt_tag: Any,
+        object_tag: Any,
+        prompt: str,
+        choices_tag: str,
+        textarea_tag: str,
+        prompts: List[str],
+    ) -> Dict:
+        """ """
         text = self._get_text(task_data, object_tag)
         norm_prompt = self._generate_normalized_prompt(text, prompt, task_data)
 
         # run inference
         # this are params provided through the web interface
         response = gpt(norm_prompt, self.extra_params)
-        regions = self._generate_response_regions(response, prompt_tag, choices_tag, textarea_tag, prompts)
+        regions = self._generate_response_regions(
+            response, prompt_tag, choices_tag, textarea_tag, prompts
+        )
 
-        return PredictionValue(result=regions, score=0.1, model_version=str(self.model_version))
+        return PredictionValue(
+            result=regions, score=0.1, model_version=str(self.model_version)
+        )
 
-    def predict(self, tasks: List[Dict], context: Optional[Dict] = None, **kwargs) -> ModelResponse:
-        """
-        """
+    def predict(
+        self, tasks: List[Dict], context: Optional[Dict] = None, **kwargs
+    ) -> ModelResponse:
+        """ """
         predictions = []
 
         # prompt tag contains the prompt in the config
@@ -264,38 +298,46 @@ class OpenAIInteractive(LabelStudioMLBase):
             self._validate_tags(choices_tag, textarea_tag)
 
             for task in tasks:
-                task_data = task['data']
-                pred = self._predict_single_task(task_data, prompt_tag, object_tag, prompt,
-                                                 choices_tag, textarea_tag, prompts)
+                task_data = task["data"]
+                pred = self._predict_single_task(
+                    task_data,
+                    prompt_tag,
+                    object_tag,
+                    prompt,
+                    choices_tag,
+                    textarea_tag,
+                    prompts,
+                )
                 predictions.append(pred)
 
         return ModelResponse(predictions=predictions)
 
     def _prompt_diff(self, old_prompt, new_prompt):
-        """
-        """
+        """ """
         old_lines = old_prompt.splitlines()
         new_lines = new_prompt.splitlines()
         diff = difflib.unified_diff(old_lines, new_lines, lineterm="")
 
         return "\n".join(
-            line for line in diff if line.startswith(('+',)) and not line.startswith(('+++', '---')))
+            line
+            for line in diff
+            if line.startswith(("+",)) and not line.startswith(("+++", "---"))
+        )
 
     def fit(self, event, data, **additional_params):
-        """
-        """
-        logger.debug(f'Data received: {data}')
-        if event not in ('ANNOTATION_CREATED', 'ANNOTATION_UPDATED'):
+        """ """
+        logger.debug(f"Data received: {data}")
+        if event not in ("ANNOTATION_CREATED", "ANNOTATION_UPDATED"):
             return
 
         prompt_tag, object_tag = self._find_prompt_tags()
-        prompts = self._get_prompts(data['annotation'], prompt_tag)
+        prompts = self._get_prompts(data["annotation"], prompt_tag)
 
         if not prompts:
-            logger.debug(f'No prompts recorded.')
+            logger.debug(f"No prompts recorded.")
             return
 
-        prompt = '\n'.join(prompts)
+        prompt = "\n".join(prompts)
         current_prompt = self.get(prompt_tag.name)
 
         # find substrings that differ between current and new prompt
@@ -303,11 +345,11 @@ class OpenAIInteractive(LabelStudioMLBase):
         if current_prompt:
             diff = self._prompt_diff(current_prompt, prompt)
             if not diff:
-                logger.debug('No prompt diff found.')
+                logger.debug("No prompt diff found.")
                 return
 
-            logger.debug(f'Prompt diff: {diff}')
+            logger.debug(f"Prompt diff: {diff}")
         self.set(prompt_tag.name, prompt)
         model_version = self.bump_model_version()
 
-        logger.debug(f'Updated model version to {str(model_version)}')
+        logger.debug(f"Updated model version to {str(model_version)}")
