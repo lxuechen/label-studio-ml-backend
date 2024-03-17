@@ -16,7 +16,11 @@ from openai import OpenAI, AzureOpenAI
 from label_studio_ml.model import LabelStudioMLBase
 from label_studio_ml.response import ModelResponse
 from label_studio_sdk.objects import PredictionValue
-from label_studio_sdk.label_interface.object_tags import ImageTag, ParagraphsTag
+from label_studio_sdk.label_interface.object_tags import (
+    ImageTag,
+    ParagraphsTag,
+)
+from label_studio_sdk.label_interface.control_tags import TextAreaTag, ChoicesTag
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +232,8 @@ class OpenAIInteractive(LabelStudioMLBase):
         self,
         response: str,
         prompt_tag,
-        choices_tag: str,
-        textarea_tag: str,
+        choices_tag: Optional[ChoicesTag],
+        textarea_tag: Optional[TextAreaTag],
         prompts: List[str],
     ) -> List:
         """ """
@@ -253,8 +257,8 @@ class OpenAIInteractive(LabelStudioMLBase):
         prompt_tag: Any,
         object_tag: Any,
         prompt: str,
-        choices_tag: str,
-        textarea_tag: str,
+        choices_tag: Optional[ChoicesTag],
+        textarea_tag: Optional[TextAreaTag],
         prompts: List[str],
     ) -> Dict:
         """ """
@@ -268,9 +272,10 @@ class OpenAIInteractive(LabelStudioMLBase):
             response, prompt_tag, choices_tag, textarea_tag, prompts
         )
 
-        return PredictionValue(
+        output = PredictionValue(
             result=regions, score=0.1, model_version=str(self.model_version)
         )
+        return output
 
     def predict(
         self, tasks: List[Dict], context: Optional[Dict] = None, **kwargs
@@ -303,7 +308,8 @@ class OpenAIInteractive(LabelStudioMLBase):
                 )
                 predictions.append(pred)
 
-        return ModelResponse(predictions=predictions)
+        output = ModelResponse(predictions=predictions)
+        return output
 
     def _prompt_diff(self, old_prompt, new_prompt):
         """ """
