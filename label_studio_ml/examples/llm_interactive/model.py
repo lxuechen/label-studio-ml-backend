@@ -41,10 +41,7 @@ def chat_completion_call(messages, params, *args, **kwargs):
     """
     provider = params.get("provider", OpenAIInteractive.OPENAI_PROVIDER)
     model = params.get("model", OpenAIInteractive.OPENAI_MODEL)
-    breakpoint()
     if provider == "openai":
-        print(params.get("api_key", OpenAIInteractive.OPENAI_KEY))
-        breakpoint()
         client = OpenAI(
             api_key=params.get("api_key", OpenAIInteractive.OPENAI_KEY),
         )
@@ -72,11 +69,7 @@ def chat_completion_call(messages, params, *args, **kwargs):
         "n": params.get("num_responses", OpenAIInteractive.NUM_RESPONSES),
         "temperature": params.get("temperature", OpenAIInteractive.TEMPERATURE),
     }
-    print(messages)
-    print(request_params)
-    breakpoint()
     completion = client.chat.completions.create(**request_params)
-
     return completion
 
 
